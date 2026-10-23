@@ -33,6 +33,9 @@ android {
 
 dependencies {
     implementation("org.java-websocket:Java-WebSocket:1.5.7")
+    implementation("org.slf4j:slf4j-api:1.7.36")
+    implementation("org.slf4j:slf4j-simple:1.7.36")
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)

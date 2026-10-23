@@ -9,10 +9,13 @@ import androidx.appcompat.app.AppCompatActivity
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
 import java.net.URI
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var wsClient: MyWebSocketClient
+    private var servidor: WsServidor? = null
+
     private lateinit var textViewChat: TextView
     private lateinit var scrollViewChat: ScrollView
     private lateinit var txtMissatge: EditText
@@ -22,86 +25,87 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. Vincular los componentes de tu XML por su ID
         textViewChat = findViewById(R.id.textView)
         scrollViewChat = findViewById(R.id.scrollView)
         txtMissatge = findViewById(R.id.txtMissatge)
         btnEnviar = findViewById(R.id.btnEnviar)
 
-        // 2. Conectar al servidor local (10.0.2.2 es el localhost del PC desde el emulador)
-        connectaWS()
+        // 1. Arrancar el servidor en segundo plano
+        thread {
+            try {
+                // Escucha en el puerto 8888 de la red interna
+                servidor = WsServidor(8888)
+                servidor?.start()
+                runOnUiThread { actualitzarHistorial("🏠 Servidor WebSocket encés al port 8888") }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
-        // 3. Configurar la acción del botón Enviar
+        // 2. Esperar un segundo a que el servidor esté listo y conectar el cliente de la app
+        textViewChat.postDelayed({
+            connectaWS()
+        }, 1000)
+
+        // 3. Acción del botón enviar de la app
         btnEnviar.setOnClickListener {
             val text = txtMissatge.text.toString().trim()
             if (text.isNotEmpty()) {
                 enviaMissatge(text)
-                txtMissatge.text.clear() // Limpiar la caja de texto al enviar
+                txtMissatge.text.clear()
             }
         }
     }
 
-    // Clase interna para gestionar las llamadas del WebSocket
     inner class MyWebSocketClient(serverUri: URI) : WebSocketClient(serverUri) {
-
         override fun onOpen(handshakedata: ServerHandshake?) {
-            actualitzarHistorial("✅ Connectat al servidor")
+            runOnUiThread { actualitzarHistorial("✅ App connectada al xat") }
         }
 
         override fun onMessage(message: String?) {
-            // Recibimos mensaje del servidor. Usamos runOnUiThread porque viene de un hilo de red
-            runOnUiThread {
-                actualitzarHistorial("📥 $message")
-            }
+            runOnUiThread { actualitzarHistorial("📥 $message") }
         }
 
         override fun onClose(code: Int, reason: String?, remote: Boolean) {
-            actualitzarHistorial("🔌 Connexió tancada: $reason")
+            runOnUiThread { actualitzarHistorial("🔌 Connexió tancada") }
         }
 
         override fun onError(ex: Exception?) {
-            actualitzarHistorial("❌ Error: ${ex?.message}")
-            ex?.printStackTrace()
+            runOnUiThread { actualitzarHistorial("❌ Error: ${ex?.message}") }
         }
     }
 
     private fun connectaWS() {
         try {
-            // Puerto 8888 tal como está definido en tu archivo WsServidor.java
-            val uri = URI("ws://10.0.2.2:8888")
+            // El emulador mapea su propio localhost interno como 127.0.0.1
+            val uri = URI("ws://127.0.0.1:8888")
             wsClient = MyWebSocketClient(uri)
             wsClient.connect()
         } catch (e: Exception) {
-            actualitzarHistorial("❌ Error al crear la URI del servidor")
             e.printStackTrace()
         }
     }
 
     private fun enviaMissatge(text: String) {
-        // Comprobar que el socket esté abierto antes de enviar
         if (::wsClient.isInitialized && wsClient.isOpen) {
             wsClient.send(text)
         } else {
-            actualitzarHistorial("⚠️ No s'ha pogut enviar el missatge (Sense connexió)")
+            actualitzarHistorial("⚠️ Sense connexió amb el servidor")
         }
     }
 
-    // Función auxiliar para pintar texto en pantalla y bajar el scroll automáticamente
     private fun actualitzarHistorial(missatge: String) {
-        runOnUiThread {
-            textViewChat.append("$missatge\n")
-            // Forzar al ScrollView a deslizarse hacia abajo para ver lo último recibido
-            scrollViewChat.post {
-                scrollViewChat.fullScroll(ScrollView.FOCUS_DOWN)
-            }
+        textViewChat.append("$missatge\n")
+        scrollViewChat.post {
+            scrollViewChat.fullScroll(ScrollView.FOCUS_DOWN)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Cerrar la conexión limpiamente si se destruye la actividad
-        if (::wsClient.isInitialized) {
-            wsClient.close()
+        if (::wsClient.isInitialized) wsClient.close()
+        thread {
+            try { servidor?.stop() } catch (e: Exception) {}
         }
     }
 }
