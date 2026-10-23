@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
@@ -40,6 +41,5 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
-    //Para poder utilizar internet
-    implementation(libs.websocket)
+
 }
